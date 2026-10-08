@@ -3,6 +3,7 @@ package kvstore
 import (
 	"distributed-kv/pkg/raft"
 	"sync"
+	"time"
 )
 
 // KVServer represents a single node providing the KV service.
@@ -17,14 +18,75 @@ type KVServer struct {
 	notifyChans map[int]chan OpResult // index -> notify channel
 }
 
+func (kv *KVServer) getNotifyChan(index int) chan OpResult {
+	kv.mu.Lock()
+	defer kv.mu.Unlock()
+	ch, ok := kv.notifyChans[index]
+	if !ok {
+		ch = make(chan OpResult, 1)
+		kv.notifyChans[index] = ch
+	}
+	return ch
+}
+
+func (kv *KVServer) removeNotifyChan(index int) {
+	kv.mu.Lock()
+	defer kv.mu.Unlock()
+	delete(kv.notifyChans, index)
+}
+
 // Get handles the Get RPC from clients.
 func (kv *KVServer) Get(args *GetArgs, reply *GetReply) {
-	// TODO: Check duplicate, submit Op to Raft, wait on notify channel
+	op := Op{
+		Type:     OpGet,
+		Key:      args.Key,
+		ClientID: args.ClientID,
+		SeqNum:   args.SeqNum,
+	}
+
+	index, _, isLeader := kv.rf.Start(op)
+	if !isLeader {
+		reply.Err = ErrWrongLeader
+		return
+	}
+
+	ch := kv.getNotifyChan(index)
+	defer kv.removeNotifyChan(index)
+
+	select {
+	case result := <-ch:
+		reply.Err = result.Err
+		reply.Value = result.Value
+	case <-time.After(500 * time.Millisecond):
+		reply.Err = ErrWrongLeader
+	}
 }
 
 // PutAppend handles the Put or Append RPC from clients.
 func (kv *KVServer) PutAppend(args *PutAppendArgs, reply *PutAppendReply) {
-	// TODO: Check duplicate, submit Op to Raft, wait on notify channel
+	op := Op{
+		Type:     args.Op,
+		Key:      args.Key,
+		Value:    args.Value,
+		ClientID: args.ClientID,
+		SeqNum:   args.SeqNum,
+	}
+
+	index, _, isLeader := kv.rf.Start(op)
+	if !isLeader {
+		reply.Err = ErrWrongLeader
+		return
+	}
+
+	ch := kv.getNotifyChan(index)
+	defer kv.removeNotifyChan(index)
+
+	select {
+	case result := <-ch:
+		reply.Err = result.Err
+	case <-time.After(500 * time.Millisecond):
+		reply.Err = ErrWrongLeader
+	}
 }
 
 // applier runs in the background and processes committed entries from Raft.
