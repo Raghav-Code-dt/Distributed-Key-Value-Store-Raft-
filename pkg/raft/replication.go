@@ -129,6 +129,28 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 }
 
 // advanceCommitIndex checks if entries can be committed based on matchIndex from a majority of peers.
+// Note: It assumes the caller holds the node's lock.
 func (rf *Raft) advanceCommitIndex() {
-	// TODO: update commitIndex and send committed entries to applyCh
+	for n := rf.log.LastLogIndex(); n > rf.commitIndex; n-- {
+		// Rule: A leader can only commit log entries from its current term by counting replicas
+		if rf.log.Entries[n].Term != rf.currentTerm {
+			continue
+		}
+
+		matchCount := 1 // Leader already has the entry
+		for i := range rf.peers {
+			if i == rf.me {
+				continue
+			}
+			if rf.matchIndex[i] >= n {
+				matchCount++
+			}
+		}
+
+		if matchCount > len(rf.peers)/2 {
+			rf.commitIndex = n
+			// The applier goroutine will notice commitIndex > lastApplied and apply entries.
+			break
+		}
+	}
 }
