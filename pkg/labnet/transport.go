@@ -81,3 +81,23 @@ func (rs *Server) dispatch(svcMeth string, args interface{}, reply interface{}) 
 
 	return nil
 }
+
+// ClientEnd represents a client's view of a connection to a specific server.
+type ClientEnd struct {
+	endname string
+	net     *Network
+}
+
+// MakeClientEnd creates a new client stub.
+func MakeClientEnd(endname string, net *Network) *ClientEnd {
+	return &ClientEnd{
+		endname: endname,
+		net:     net,
+	}
+}
+
+// Call asks the Network to deliver the RPC to the destination server.
+func (e *ClientEnd) Call(svcMeth string, args interface{}, reply interface{}) bool {
+	// Defer to the central network dispatcher, which simulates unreliability.
+	return e.net.ProcessReq(e.endname, svcMeth, args, reply)
+}
