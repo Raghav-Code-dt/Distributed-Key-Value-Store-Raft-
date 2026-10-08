@@ -87,10 +87,45 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 	// If we receive a heartbeat from a valid leader, step down and reset timer
 	rf.becomeFollower(args.Term)
 	rf.resetElectionTimer()
-
+	
 	reply.Term = rf.currentTerm
+
+	// Consistency Check: Log must contain an entry at PrevLogIndex matching PrevLogTerm
+	if args.PrevLogIndex > rf.log.LastLogIndex() {
+		reply.Success = false
+		return
+	}
+	if rf.log.Entries[args.PrevLogIndex].Term != args.PrevLogTerm {
+		reply.Success = false
+		return
+	}
+
+	// Conflict Resolution & Truncation
+	insertIndex := args.PrevLogIndex + 1
+	for i, entry := range args.Entries {
+		if insertIndex <= rf.log.LastLogIndex() && rf.log.Entries[insertIndex].Term != entry.Term {
+			rf.log.Truncate(insertIndex)
+		}
+		
+		if insertIndex > rf.log.LastLogIndex() {
+			// Append the rest of the new entries
+			rf.log.Append(args.Entries[i:]...)
+			break
+		}
+		insertIndex++
+	}
+
+	// Advance commitIndex if leader has moved forward
+	if args.LeaderCommit > rf.commitIndex {
+		lastNewIndex := args.PrevLogIndex + len(args.Entries)
+		if args.LeaderCommit < lastNewIndex {
+			rf.commitIndex = args.LeaderCommit
+		} else {
+			rf.commitIndex = lastNewIndex
+		}
+	}
+
 	reply.Success = true
-	// TODO: implement actual log replication and conflict resolution in Lab 2B
 }
 
 // advanceCommitIndex checks if entries can be committed based on matchIndex from a majority of peers.
