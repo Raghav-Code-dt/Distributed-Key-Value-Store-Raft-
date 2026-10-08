@@ -45,7 +45,7 @@ func StartKVServer(servers []interface{}, me int, persister interface{}, maxraft
 		notifyChans: make(map[int]chan OpResult),
 		applyCh:     make(chan raft.ApplyMsg),
 	}
-	kv.rf = raft.Make(servers, me, kv.applyCh)
+	kv.rf = raft.Make(servers, me, persister.(*raft.Persister), kv.applyCh)
 	// TODO: start applier goroutine
 	return kv
 }

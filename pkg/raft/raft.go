@@ -1,6 +1,8 @@
 package raft
 
 import (
+	"bytes"
+	"encoding/gob"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -11,8 +13,9 @@ type Raft struct {
 	mu      sync.Mutex    // Lock to protect shared access to this peer's state
 	peers   []interface{} // Mock RPC client endpoints (to be replaced with actual RPC interface)
 	me      int           // This peer's index into peers[]
-	dead    int32         // set by Kill()
-	applyCh chan ApplyMsg // Channel to send committed log entries to the service
+	dead      int32         // set by Kill()
+	applyCh   chan ApplyMsg // Channel to send committed log entries to the service
+	persister *Persister    // Object to hold this peer's persisted state
 
 	// Persistent state on all servers
 	currentTerm int
@@ -102,9 +105,10 @@ func (rf *Raft) killed() bool {
 }
 
 // Make creates a new Raft node.
-func Make(peers []interface{}, me int, applyCh chan ApplyMsg) *Raft {
+func Make(peers []interface{}, me int, persister *Persister, applyCh chan ApplyMsg) *Raft {
 	rf := &Raft{}
 	rf.peers = peers
+	rf.persister = persister
 	rf.me = me
 	rf.applyCh = applyCh
 
@@ -114,9 +118,45 @@ func Make(peers []interface{}, me int, applyCh chan ApplyMsg) *Raft {
 	rf.state = Follower
 	rf.lastHeartbeat = time.Now()
 
+	// Initialize from state persisted before a crash
+	rf.readPersist(persister.ReadRaftState())
+
 	// Start the background election ticker and applier
 	go rf.ticker()
 	go rf.applier()
 
 	return rf
+}
+
+// persist saves the Raft node's persistent state to stable storage.
+// Note: It assumes the caller holds the node's lock.
+func (rf *Raft) persist() {
+	w := new(bytes.Buffer)
+	e := gob.NewEncoder(w)
+	e.Encode(rf.currentTerm)
+	e.Encode(rf.votedFor)
+	e.Encode(rf.log.Entries)
+	data := w.Bytes()
+	rf.persister.SaveRaftState(data)
+}
+
+// readPersist restores previously persisted state.
+func (rf *Raft) readPersist(data []byte) {
+	if data == nil || len(data) < 1 {
+		return // Bootstrap without state
+	}
+	r := bytes.NewBuffer(data)
+	d := gob.NewDecoder(r)
+	
+	var currentTerm int
+	var votedFor int
+	var entries []LogEntry
+	
+	if d.Decode(&currentTerm) == nil &&
+	   d.Decode(&votedFor) == nil &&
+	   d.Decode(&entries) == nil {
+		rf.currentTerm = currentTerm
+		rf.votedFor = votedFor
+		rf.log.Entries = entries
+	}
 }
