@@ -91,7 +91,43 @@ func (kv *KVServer) PutAppend(args *PutAppendArgs, reply *PutAppendReply) {
 
 // applier runs in the background and processes committed entries from Raft.
 func (kv *KVServer) applier() {
-	// TODO: Read from kv.applyCh, apply to KVStore, notify waiting clients
+	for msg := range kv.applyCh {
+		if msg.CommandValid {
+			op := msg.Command.(Op)
+			result := OpResult{Err: OK}
+
+			// Check idempotency for modifying operations
+			if op.Type != OpGet {
+				if _, isDup := kv.store.CheckDuplicate(op.ClientID, op.SeqNum); !isDup {
+					if op.Type == OpPut {
+						kv.store.Put(op.Key, op.Value)
+					} else if op.Type == OpAppend {
+						kv.store.Append(op.Key, op.Value)
+					}
+					kv.store.RecordOperation(op.ClientID, op.SeqNum, "")
+				}
+			} else {
+				// Get operations simply read
+				val, ok := kv.store.Get(op.Key)
+				if ok {
+					result.Value = val
+				} else {
+					result.Err = ErrNoKey
+				}
+			}
+
+			// Notify the waiting RPC handler if this node is the leader who submitted it
+			kv.mu.Lock()
+			if ch, ok := kv.notifyChans[msg.CommandIndex]; ok {
+				// Channel has buffer 1, so this won't block
+				select {
+				case ch <- result:
+				default:
+				}
+			}
+			kv.mu.Unlock()
+		}
+	}
 }
 
 // Kill sets the server to a dead state.
@@ -108,6 +144,9 @@ func StartKVServer(servers []interface{}, me int, persister interface{}, maxraft
 		applyCh:     make(chan raft.ApplyMsg),
 	}
 	kv.rf = raft.Make(servers, me, persister.(*raft.Persister), kv.applyCh)
-	// TODO: start applier goroutine
+
+	// Start the background applier goroutine
+	go kv.applier()
+
 	return kv
 }

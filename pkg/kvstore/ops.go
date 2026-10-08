@@ -4,6 +4,10 @@ const (
 	OpPut    = "Put"
 	OpAppend = "Append"
 	OpGet    = "Get"
+
+	OK             = "OK"
+	ErrNoKey       = "ErrNoKey"
+	ErrWrongLeader = "ErrWrongLeader"
 )
 
 // Op represents a single client operation submitted to the Raft log.

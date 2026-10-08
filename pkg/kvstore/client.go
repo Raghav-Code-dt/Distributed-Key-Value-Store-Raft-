@@ -44,14 +44,14 @@ func (ck *Clerk) Get(key string) string {
 		reply := GetReply{}
 		server := ck.servers[ck.leaderID].(*labnet.ClientEnd)
 		ok := server.Call("KVServer.Get", &args, &reply)
-		
+
 		if ok && reply.Err == OK {
 			return reply.Value
 		}
 		if ok && reply.Err == ErrNoKey {
 			return ""
 		}
-		
+
 		// If RPC failed, timed out, or wrong leader, try the next server
 		ck.leaderID = (ck.leaderID + 1) % len(ck.servers)
 	}
@@ -72,11 +72,11 @@ func (ck *Clerk) PutAppend(key string, value string, op string) {
 		reply := PutAppendReply{}
 		server := ck.servers[ck.leaderID].(*labnet.ClientEnd)
 		ok := server.Call("KVServer.PutAppend", &args, &reply)
-		
+
 		if ok && reply.Err == OK {
 			return
 		}
-		
+
 		// If RPC failed, timed out, or wrong leader, try the next server
 		ck.leaderID = (ck.leaderID + 1) % len(ck.servers)
 	}
