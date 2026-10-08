@@ -3,6 +3,7 @@ package raft
 import (
 	"sync"
 	"sync/atomic"
+	"time"
 )
 // Raft represents a single node in a Raft consensus cluster.
 type Raft struct {
@@ -25,6 +26,9 @@ type Raft struct {
 	// Volatile state on leaders
 	nextIndex  []int
 	matchIndex []int
+
+	// Election state
+	lastHeartbeat time.Time
 }
 
 // GetState returns the current term and whether this node believes it is the leader.
@@ -62,6 +66,7 @@ func Make(peers []interface{}, me int, applyCh chan ApplyMsg) *Raft {
 	rf.votedFor = -1
 	rf.log = NewRaftLog()
 	rf.state = Follower
+	rf.lastHeartbeat = time.Now()
 
 	// Start the background election ticker
 	go rf.ticker()
