@@ -21,6 +21,14 @@ func (rf *Raft) ticker() {
 				rf.startElection()
 				rf.mu.Unlock()
 			}
+		} else {
+			// Send periodic heartbeats to maintain leadership and push updates
+			if time.Since(lastHeartbeat) > 100*time.Millisecond {
+				rf.broadcastHeartbeats()
+				rf.mu.Lock()
+				rf.resetElectionTimer()
+				rf.mu.Unlock()
+			}
 		}
 
 		// Sleep for a short interval before checking again
@@ -75,7 +83,7 @@ func (rf *Raft) startElection() {
 					votesReceived++
 					if votesReceived > len(rf.peers)/2 {
 						rf.becomeLeader()
-						rf.broadcastHeartbeats() // Suppress other elections
+						go rf.broadcastHeartbeats() // Suppress other elections
 					}
 				}
 			}
@@ -85,8 +93,12 @@ func (rf *Raft) startElection() {
 
 // sendRequestVote is a wrapper to send the RPC to a peer.
 func (rf *Raft) sendRequestVote(server int, args *RequestVoteArgs, reply *RequestVoteReply) bool {
-	// In a complete implementation, this would use rf.peers[server].Call(...)
-	// We'll leave it as a mock return for now.
+	client, ok := rf.peers[server].(interface {
+		Call(string, interface{}, interface{}) bool
+	})
+	if ok {
+		return client.Call("Raft.RequestVote", args, reply)
+	}
 	return false
 }
 

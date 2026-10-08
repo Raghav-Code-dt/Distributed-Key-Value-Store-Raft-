@@ -68,8 +68,12 @@ func (rf *Raft) broadcastHeartbeats() {
 
 // sendAppendEntries is a wrapper to send the RPC to a peer.
 func (rf *Raft) sendAppendEntries(server int, args *AppendEntriesArgs, reply *AppendEntriesReply) bool {
-	// In a complete implementation, this would use rf.peers[server].Call(...)
-	// We'll leave it as a mock return for now.
+	client, ok := rf.peers[server].(interface {
+		Call(string, interface{}, interface{}) bool
+	})
+	if ok {
+		return client.Call("Raft.AppendEntries", args, reply)
+	}
 	return false
 }
 
