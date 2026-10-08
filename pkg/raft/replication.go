@@ -87,7 +87,7 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 	// If we receive a heartbeat from a valid leader, step down and reset timer
 	rf.becomeFollower(args.Term)
 	rf.resetElectionTimer()
-	
+
 	reply.Term = rf.currentTerm
 
 	// Consistency Check: Log must contain an entry at PrevLogIndex matching PrevLogTerm
@@ -106,7 +106,7 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 		if insertIndex <= rf.log.LastLogIndex() && rf.log.Entries[insertIndex].Term != entry.Term {
 			rf.log.Truncate(insertIndex)
 		}
-		
+
 		if insertIndex > rf.log.LastLogIndex() {
 			// Append the rest of the new entries
 			rf.log.Append(args.Entries[i:]...)

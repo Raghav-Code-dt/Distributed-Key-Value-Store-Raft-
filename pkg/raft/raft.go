@@ -69,17 +69,17 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
 func (rf *Raft) applier() {
 	for !rf.killed() {
 		rf.mu.Lock()
-		
+
 		if rf.commitIndex > rf.lastApplied {
 			rf.lastApplied++
 			entry := rf.log.Entries[rf.lastApplied]
-			
+
 			msg := ApplyMsg{
 				CommandValid: true,
 				Command:      entry.Command,
 				CommandIndex: rf.lastApplied,
 			}
-			
+
 			rf.mu.Unlock()
 			// Send outside the lock to avoid deadlocks with the KV service
 			rf.applyCh <- msg
