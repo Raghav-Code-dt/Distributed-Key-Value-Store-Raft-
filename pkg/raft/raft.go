@@ -1,7 +1,9 @@
 package raft
 
-import "sync"
-
+import (
+	"sync"
+	"sync/atomic"
+)
 // Raft represents a single node in a Raft consensus cluster.
 type Raft struct {
 	mu        sync.Mutex          // Lock to protect shared access to this peer's state
@@ -27,8 +29,9 @@ type Raft struct {
 
 // GetState returns the current term and whether this node believes it is the leader.
 func (rf *Raft) GetState() (int, bool) {
-	// TODO: return rf.currentTerm, rf.state == Leader
-	return 0, false
+	rf.mu.Lock()
+	defer rf.mu.Unlock()
+	return rf.currentTerm, rf.state == Leader
 }
 
 // Start proposes a command to the Raft cluster.
@@ -39,7 +42,13 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
 
 // Kill sets the node to a dead state, used mainly for testing.
 func (rf *Raft) Kill() {
-	// TODO: atomic.StoreInt32(&rf.dead, 1)
+	atomic.StoreInt32(&rf.dead, 1)
+}
+
+// killed checks if the node has been killed.
+func (rf *Raft) killed() bool {
+	z := atomic.LoadInt32(&rf.dead)
+	return z == 1
 }
 
 // Make creates a new Raft node.
@@ -48,6 +57,14 @@ func Make(peers []interface{}, me int, applyCh chan ApplyMsg) *Raft {
 	rf.peers = peers
 	rf.me = me
 	rf.applyCh = applyCh
-	// TODO: initialize state and start background goroutines (like ticker)
+	
+	rf.currentTerm = 0
+	rf.votedFor = -1
+	rf.log = NewRaftLog()
+	rf.state = Follower
+
+	// Start the background election ticker
+	go rf.ticker()
+
 	return rf
 }
