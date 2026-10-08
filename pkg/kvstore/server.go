@@ -1,8 +1,8 @@
 package kvstore
 
 import (
-	"sync"
 	"distributed-kv/pkg/raft"
+	"sync"
 )
 
 // KVServer represents a single node providing the KV service.

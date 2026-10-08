@@ -9,7 +9,7 @@ func TestInitialElection(t *testing.T) {
 
 // TestReElection (Lab 2A)
 func TestReElection(t *testing.T) {
-	// TODO: Disconnect the leader; remaining 2 nodes must elect a new leader. 
+	// TODO: Disconnect the leader; remaining 2 nodes must elect a new leader.
 	// Reconnect old leader; it must step down to follower.
 }
 

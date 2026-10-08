@@ -67,7 +67,7 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 	// If we receive a heartbeat from a valid leader, step down and reset timer
 	rf.becomeFollower(args.Term)
 	rf.resetElectionTimer()
-	
+
 	reply.Term = rf.currentTerm
 	reply.Success = true
 	// TODO: implement actual log replication and conflict resolution in Lab 2B

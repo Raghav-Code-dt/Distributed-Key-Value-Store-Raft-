@@ -4,11 +4,11 @@ import "sync"
 
 // KVStore represents the core in-memory key-value database.
 type KVStore struct {
-	mu        sync.Mutex
-	data      map[string]string // The actual key-value data map
-	
+	mu   sync.Mutex
+	data map[string]string // The actual key-value data map
+
 	// Deduplication table for client retries: ClientID -> Last SeqNum processed
-	lastSeq   map[int64]int64
+	lastSeq map[int64]int64
 	// Caches the reply for the last processed SeqNum per ClientID
 	lastReply map[int64]string
 }
@@ -48,7 +48,7 @@ func (kv *KVStore) Append(key, value string) {
 func (kv *KVStore) CheckDuplicate(clientID int64, seqNum int64) (string, bool) {
 	kv.mu.Lock()
 	defer kv.mu.Unlock()
-	
+
 	last, exists := kv.lastSeq[clientID]
 	if exists && seqNum <= last {
 		return kv.lastReply[clientID], true
@@ -60,7 +60,7 @@ func (kv *KVStore) CheckDuplicate(clientID int64, seqNum int64) (string, bool) {
 func (kv *KVStore) RecordOperation(clientID int64, seqNum int64, reply string) {
 	kv.mu.Lock()
 	defer kv.mu.Unlock()
-	
+
 	kv.lastSeq[clientID] = seqNum
 	kv.lastReply[clientID] = reply
 }

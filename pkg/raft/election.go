@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-// ticker triggers leader elections periodically by observing election timeouts.
+// ticker triggers leader elections periodically by observing e/lection timeouts.
 func (rf *Raft) ticker() {
 	for !rf.killed() {
 		rf.mu.Lock()
@@ -22,7 +22,7 @@ func (rf *Raft) ticker() {
 				rf.mu.Unlock()
 			}
 		}
-		
+
 		// Sleep for a short interval before checking again
 		time.Sleep(10 * time.Millisecond)
 	}
@@ -38,7 +38,7 @@ func (rf *Raft) resetElectionTimer() {
 func (rf *Raft) startElection() {
 	rf.becomeCandidate()
 	rf.resetElectionTimer()
-	
+
 	term := rf.currentTerm
 	candidateId := rf.me
 	lastLogIndex := rf.log.LastLogIndex()
@@ -87,7 +87,7 @@ func (rf *Raft) startElection() {
 func (rf *Raft) sendRequestVote(server int, args *RequestVoteArgs, reply *RequestVoteReply) bool {
 	// In a complete implementation, this would use rf.peers[server].Call(...)
 	// We'll leave it as a mock return for now.
-	return false 
+	return false
 }
 
 // RequestVote is the RPC handler invoked by candidates to gather votes.

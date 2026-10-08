@@ -5,13 +5,14 @@ import (
 	"sync/atomic"
 	"time"
 )
+
 // Raft represents a single node in a Raft consensus cluster.
 type Raft struct {
-	mu        sync.Mutex          // Lock to protect shared access to this peer's state
-	peers     []interface{}       // Mock RPC client endpoints (to be replaced with actual RPC interface)
-	me        int                 // This peer's index into peers[]
-	dead      int32               // set by Kill()
-	applyCh   chan ApplyMsg       // Channel to send committed log entries to the service
+	mu      sync.Mutex    // Lock to protect shared access to this peer's state
+	peers   []interface{} // Mock RPC client endpoints (to be replaced with actual RPC interface)
+	me      int           // This peer's index into peers[]
+	dead    int32         // set by Kill()
+	applyCh chan ApplyMsg // Channel to send committed log entries to the service
 
 	// Persistent state on all servers
 	currentTerm int
@@ -40,8 +41,53 @@ func (rf *Raft) GetState() (int, bool) {
 
 // Start proposes a command to the Raft cluster.
 func (rf *Raft) Start(command interface{}) (int, int, bool) {
-	// TODO: return (index, term, isLeader)
-	return -1, -1, false
+	rf.mu.Lock()
+	defer rf.mu.Unlock()
+
+	if rf.state != Leader {
+		return -1, -1, false
+	}
+
+	index := rf.log.LastLogIndex() + 1
+	term := rf.currentTerm
+
+	rf.log.Append(LogEntry{
+		Term:    term,
+		Command: command,
+	})
+
+	rf.nextIndex[rf.me] = index + 1
+	rf.matchIndex[rf.me] = index
+
+	// Immediately trigger a round of AppendEntries to replicate
+	go rf.broadcastHeartbeats()
+
+	return index, term, true
+}
+
+// applier runs in the background and applies committed logs to the state machine.
+func (rf *Raft) applier() {
+	for !rf.killed() {
+		rf.mu.Lock()
+		
+		if rf.commitIndex > rf.lastApplied {
+			rf.lastApplied++
+			entry := rf.log.Entries[rf.lastApplied]
+			
+			msg := ApplyMsg{
+				CommandValid: true,
+				Command:      entry.Command,
+				CommandIndex: rf.lastApplied,
+			}
+			
+			rf.mu.Unlock()
+			// Send outside the lock to avoid deadlocks with the KV service
+			rf.applyCh <- msg
+		} else {
+			rf.mu.Unlock()
+			time.Sleep(10 * time.Millisecond)
+		}
+	}
 }
 
 // Kill sets the node to a dead state, used mainly for testing.
@@ -61,15 +107,16 @@ func Make(peers []interface{}, me int, applyCh chan ApplyMsg) *Raft {
 	rf.peers = peers
 	rf.me = me
 	rf.applyCh = applyCh
-	
+
 	rf.currentTerm = 0
 	rf.votedFor = -1
 	rf.log = NewRaftLog()
 	rf.state = Follower
 	rf.lastHeartbeat = time.Now()
 
-	// Start the background election ticker
+	// Start the background election ticker and applier
 	go rf.ticker()
+	go rf.applier()
 
 	return rf
 }

@@ -19,7 +19,7 @@ func main() {
 	// Wait for interrupt signal to gracefully shutdown the server
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGINT, syscall.SIGTERM)
-	
+
 	<-sigCh
 	log.Println("Shutting down KV node...")
 	// TODO: kvServer.Kill()

@@ -14,12 +14,12 @@ func TestConcurrentClients(t *testing.T) {
 
 // TestPartitionKV (Lab 3A)
 func TestPartitionKV(t *testing.T) {
-	// TODO: Partition 3-node cluster. Clients writing to majority succeed; 
+	// TODO: Partition 3-node cluster. Clients writing to majority succeed;
 	// writes to minority fail/hang. Repair partition; cluster converges.
 }
 
 // TestClientRetries (Lab 3A)
 func TestClientRetries(t *testing.T) {
-	// TODO: Drop client RPC responses; client retries the same operation; 
+	// TODO: Drop client RPC responses; client retries the same operation;
 	// verify store applies it exactly once.
 }
