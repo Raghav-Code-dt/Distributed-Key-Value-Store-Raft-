@@ -38,7 +38,7 @@ func (rs *Server) AddService(svc interface{}) {
 
 	typ := reflect.TypeOf(svc)
 	val := reflect.ValueOf(svc)
-	
+
 	// Extract the name of the struct (e.g., "Raft")
 	name := reflect.Indirect(val).Type().Name()
 
