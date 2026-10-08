@@ -1,6 +1,6 @@
 package raft
 
-// broadcastHeartbeats sends empty AppendEntries RPCs to all peers to maintain leadership.
+// broadcastHeartbeats sends AppendEntries RPCs to all peers to maintain leadership and replicate logs.
 func (rf *Raft) broadcastHeartbeats() {
 	rf.mu.Lock()
 	defer rf.mu.Unlock()
@@ -18,12 +18,20 @@ func (rf *Raft) broadcastHeartbeats() {
 			continue
 		}
 
+		nextIdx := rf.nextIndex[i]
+		prevLogIndex := nextIdx - 1
+		prevLogTerm := rf.log.Entries[prevLogIndex].Term
+
+		// Copy entries to send to avoid race conditions
+		entries := make([]LogEntry, len(rf.log.Entries[nextIdx:]))
+		copy(entries, rf.log.Entries[nextIdx:])
+
 		args := AppendEntriesArgs{
 			Term:         term,
 			LeaderId:     leaderId,
-			PrevLogIndex: rf.log.LastLogIndex(),
-			PrevLogTerm:  rf.log.LastLogTerm(),
-			Entries:      nil, // Empty for heartbeat
+			PrevLogIndex: prevLogIndex,
+			PrevLogTerm:  prevLogTerm,
+			Entries:      entries,
 			LeaderCommit: leaderCommit,
 		}
 
@@ -40,6 +48,18 @@ func (rf *Raft) broadcastHeartbeats() {
 				if reply.Term > rf.currentTerm {
 					rf.becomeFollower(reply.Term)
 					return
+				}
+
+				if reply.Success {
+					matchIdx := args.PrevLogIndex + len(args.Entries)
+					if matchIdx > rf.matchIndex[peer] {
+						rf.matchIndex[peer] = matchIdx
+						rf.nextIndex[peer] = matchIdx + 1
+						rf.advanceCommitIndex()
+					}
+				} else {
+					// Log inconsistency: decrement nextIndex and retry (relies on periodic heartbeats or immediate retry)
+					rf.nextIndex[peer]--
 				}
 			}
 		}(i)
