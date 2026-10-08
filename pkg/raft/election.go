@@ -112,6 +112,7 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 	// 2. If votedFor is null or candidateId, grant vote
 	if rf.votedFor == -1 || rf.votedFor == args.CandidateId {
 		rf.votedFor = args.CandidateId
+		rf.persist()
 		rf.resetElectionTimer()
 		reply.VoteGranted = true
 	} else {

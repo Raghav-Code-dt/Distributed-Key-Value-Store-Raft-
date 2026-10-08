@@ -10,9 +10,9 @@ import (
 
 // Raft represents a single node in a Raft consensus cluster.
 type Raft struct {
-	mu      sync.Mutex    // Lock to protect shared access to this peer's state
-	peers   []interface{} // Mock RPC client endpoints (to be replaced with actual RPC interface)
-	me      int           // This peer's index into peers[]
+	mu        sync.Mutex    // Lock to protect shared access to this peer's state
+	peers     []interface{} // Mock RPC client endpoints (to be replaced with actual RPC interface)
+	me        int           // This peer's index into peers[]
 	dead      int32         // set by Kill()
 	applyCh   chan ApplyMsg // Channel to send committed log entries to the service
 	persister *Persister    // Object to hold this peer's persisted state
@@ -58,6 +58,7 @@ func (rf *Raft) Start(command interface{}) (int, int, bool) {
 		Term:    term,
 		Command: command,
 	})
+	rf.persist()
 
 	rf.nextIndex[rf.me] = index + 1
 	rf.matchIndex[rf.me] = index
@@ -147,14 +148,14 @@ func (rf *Raft) readPersist(data []byte) {
 	}
 	r := bytes.NewBuffer(data)
 	d := gob.NewDecoder(r)
-	
+
 	var currentTerm int
 	var votedFor int
 	var entries []LogEntry
-	
+
 	if d.Decode(&currentTerm) == nil &&
-	   d.Decode(&votedFor) == nil &&
-	   d.Decode(&entries) == nil {
+		d.Decode(&votedFor) == nil &&
+		d.Decode(&entries) == nil {
 		rf.currentTerm = currentTerm
 		rf.votedFor = votedFor
 		rf.log.Entries = entries

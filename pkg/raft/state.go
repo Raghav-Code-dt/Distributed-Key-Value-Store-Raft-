@@ -6,6 +6,7 @@ func (rf *Raft) becomeFollower(term int) {
 	rf.state = Follower
 	rf.currentTerm = term
 	rf.votedFor = -1
+	rf.persist()
 }
 
 // becomeCandidate transitions the node to the Candidate state and increments the term.
@@ -14,6 +15,7 @@ func (rf *Raft) becomeCandidate() {
 	rf.state = Candidate
 	rf.currentTerm++
 	rf.votedFor = rf.me
+	rf.persist()
 }
 
 // becomeLeader transitions the node to the Leader state.

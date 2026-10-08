@@ -102,17 +102,24 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 
 	// Conflict Resolution & Truncation
 	insertIndex := args.PrevLogIndex + 1
+	changed := false
 	for i, entry := range args.Entries {
 		if insertIndex <= rf.log.LastLogIndex() && rf.log.Entries[insertIndex].Term != entry.Term {
 			rf.log.Truncate(insertIndex)
+			changed = true
 		}
 
 		if insertIndex > rf.log.LastLogIndex() {
 			// Append the rest of the new entries
 			rf.log.Append(args.Entries[i:]...)
+			changed = true
 			break
 		}
 		insertIndex++
+	}
+
+	if changed {
+		rf.persist()
 	}
 
 	// Advance commitIndex if leader has moved forward
