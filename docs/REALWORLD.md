@@ -48,3 +48,11 @@ When transitioning from in-memory mock storage to physical `DiskPersister`, the 
 If a node was booted with a `-peers` array that only included *other* nodes (length 2), it would panic with `index out of range` during leader election.
 *   **Root Cause:** The Raft algorithm fundamentally relies on `len(peers)` to calculate the total cluster size and Quorum (`len(peers)/2`). Furthermore, it uses the server's own ID (`rf.me`) as a direct index into arrays like `nextIndex` and `matchIndex`.
 *   **Resolution:** The `-peers` flag must always contain the **entire cluster's addresses**, including the server's own address, in the exact same order on every node. The internal Raft loops automatically `continue` and skip over their own `rf.me` index when broadcasting over TCP.
+
+## 6. Benchmarking & Performance Profiling
+When running the `kvclient benchmark` command against the standalone TCP daemons, the observed throughput sits at roughly **~100 ops/sec**, representing a severe drop from the **15,000 ops/sec** observed in the simulated `testing.B` harness. 
+
+This drop perfectly isolates the fundamental latency bottlenecks of physical hardware in distributed systems:
+1. **Physical Disk I/O:** The simulated `Persister` executes zero-cost memory allocations. The real `DiskPersister` executes a synchronous, blocking `os.WriteFile` flush to a physical `.dat` file on the hard drive for every single Raft state change.
+2. **Synchronous TCP Handshakes:** The `TCPClientEnd` executes a fresh `rpc.Dial` for every individual RPC, resulting in a full 3-way TCP handshake over the OS loopback interface per request, compared to the simulator's zero-cost pointer passing.
+3. **Serial Client Execution:** The `benchmark` loop executes sequentially, waiting for full cluster consensus and disk I/O before issuing the next command, whereas the `testing.B` suite was configured to blast thousands of concurrent requests across parallel goroutines.
