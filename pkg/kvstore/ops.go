@@ -22,8 +22,10 @@ type Op struct {
 
 // OpResult represents the result of applying an operation to the state machine.
 type OpResult struct {
-	Value string
-	Err   string
+	Value    string
+	Err      string
+	ClientID int64
+	SeqNum   int64
 }
 
 // PutAppendArgs holds the RPC arguments for Put and Append requests.
