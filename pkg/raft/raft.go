@@ -15,7 +15,7 @@ type Raft struct {
 	me        int           // This peer's index into peers[]
 	dead      int32         // set by Kill()
 	applyCh   chan ApplyMsg // Channel to send committed log entries to the service
-	persister *Persister    // Object to hold this peer's persisted state
+	persister Storage       // Object to hold this peer's persisted state
 
 	// Persistent state on all servers
 	currentTerm int
@@ -106,7 +106,7 @@ func (rf *Raft) killed() bool {
 }
 
 // Make creates a new Raft node.
-func Make(peers []interface{}, me int, persister *Persister, applyCh chan ApplyMsg) *Raft {
+func Make(peers []interface{}, me int, persister Storage, applyCh chan ApplyMsg) *Raft {
 	rf := &Raft{}
 	rf.peers = peers
 	rf.persister = persister
