@@ -16,6 +16,9 @@ type Raft struct {
 	dead      int32         // set by Kill()
 	applyCh   chan ApplyMsg // Channel to send committed log entries to the service
 	persister Storage       // Object to hold this peer's persisted state
+	
+	FastApply bool          // Feature flag for optimized eager applying
+	applyCond *sync.Cond    // Condition variable to wake up applier
 
 	// Persistent state on all servers
 	currentTerm int
@@ -88,8 +91,13 @@ func (rf *Raft) applier() {
 			// Send outside the lock to avoid deadlocks with the KV service
 			rf.applyCh <- msg
 		} else {
-			rf.mu.Unlock()
-			time.Sleep(10 * time.Millisecond)
+			if rf.FastApply {
+				rf.applyCond.Wait()
+				rf.mu.Unlock()
+			} else {
+				rf.mu.Unlock()
+				time.Sleep(10 * time.Millisecond)
+			}
 		}
 	}
 }
@@ -97,6 +105,11 @@ func (rf *Raft) applier() {
 // Kill sets the node to a dead state, used mainly for testing.
 func (rf *Raft) Kill() {
 	atomic.StoreInt32(&rf.dead, 1)
+	rf.mu.Lock()
+	if rf.FastApply {
+		rf.applyCond.Broadcast()
+	}
+	rf.mu.Unlock()
 }
 
 // killed checks if the node has been killed.
@@ -112,6 +125,7 @@ func Make(peers []interface{}, me int, persister Storage, applyCh chan ApplyMsg)
 	rf.persister = persister
 	rf.me = me
 	rf.applyCh = applyCh
+	rf.applyCond = sync.NewCond(&rf.mu)
 
 	rf.currentTerm = 0
 	rf.votedFor = -1

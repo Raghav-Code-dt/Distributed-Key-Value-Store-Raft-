@@ -25,3 +25,12 @@ Thumbs.db
 
 # Raft persistence files
 *.dat
+
+# Local benchmark and profiling artifacts
+kvserver-bench
+strace
+libfsync.so
+fsync_counter.c
+test_tcp.go
+*.txt
+profile.txt

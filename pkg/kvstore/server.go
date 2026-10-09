@@ -56,8 +56,12 @@ func (kv *KVServer) Get(args *GetArgs, reply *GetReply) error {
 
 	select {
 	case result := <-ch:
-		reply.Err = result.Err
-		reply.Value = result.Value
+		if result.ClientID != op.ClientID || result.SeqNum != op.SeqNum {
+			reply.Err = ErrWrongLeader
+		} else {
+			reply.Err = result.Err
+			reply.Value = result.Value
+		}
 	case <-time.After(500 * time.Millisecond):
 		reply.Err = ErrWrongLeader
 	}
@@ -85,7 +89,11 @@ func (kv *KVServer) PutAppend(args *PutAppendArgs, reply *PutAppendReply) error 
 
 	select {
 	case result := <-ch:
-		reply.Err = result.Err
+		if result.ClientID != op.ClientID || result.SeqNum != op.SeqNum {
+			reply.Err = ErrWrongLeader
+		} else {
+			reply.Err = result.Err
+		}
 	case <-time.After(500 * time.Millisecond):
 		reply.Err = ErrWrongLeader
 	}
@@ -97,7 +105,11 @@ func (kv *KVServer) applier() {
 	for msg := range kv.applyCh {
 		if msg.CommandValid {
 			op := msg.Command.(Op)
-			result := OpResult{Err: OK}
+			result := OpResult{
+				Err:      OK,
+				ClientID: op.ClientID,
+				SeqNum:   op.SeqNum,
+			}
 
 			// Check idempotency for modifying operations
 			if op.Type != OpGet {

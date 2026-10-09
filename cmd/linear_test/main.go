@@ -95,11 +95,21 @@ func runTest(seed int64) bool {
 	binPath := buildServer()
 	defer os.Remove(binPath)
 
-	peersArg := "localhost:8001,localhost:8002,localhost:8003"
+	peersArg := "localhost:9001,localhost:9002,localhost:9003"
 	
+	testDir, _ := os.MkdirTemp("", "porcupine-*")
+	defer os.RemoveAll(testDir)
+
 	cmds := make([]*exec.Cmd, 3)
 	for i := 0; i < 3; i++ {
-		cmds[i] = startServer(binPath, i, 8001+i, peersArg)
+		cmd := exec.Command(binPath, "-id", fmt.Sprintf("%d", i), "-port", fmt.Sprintf("%d", 9001+i), "-peers", peersArg)
+		cmd.Dir = testDir
+		cmd.Stdout = nil
+		cmd.Stderr = nil
+		if err := cmd.Start(); err != nil {
+			log.Fatalf("Failed to start server %d: %v", i, err)
+		}
+		cmds[i] = cmd
 	}
 
 	defer func() {
@@ -115,9 +125,9 @@ func runTest(seed int64) bool {
 	time.Sleep(800 * time.Millisecond)
 
 	peers := []interface{}{
-		tcpnet.MakeTCPClientEnd("localhost:8001"),
-		tcpnet.MakeTCPClientEnd("localhost:8002"),
-		tcpnet.MakeTCPClientEnd("localhost:8003"),
+		tcpnet.MakeTCPClientEnd("localhost:9001"),
+		tcpnet.MakeTCPClientEnd("localhost:9002"),
+		tcpnet.MakeTCPClientEnd("localhost:9003"),
 	}
 
 	var events []porcupine.Event
@@ -212,11 +222,23 @@ func runTest(seed int64) bool {
 }
 
 func main() {
-	seed := int64(1791541684054185553)
-	fmt.Printf("Reproducing failing seed: %d\n", seed)
-	if runTest(seed) {
-		fmt.Println("PASS (wait, it was supposed to fail!)")
-	} else {
-		fmt.Println("FAIL (successfully reproduced)")
+	pass := 0
+	fail := 0
+	runs := 200
+
+	fmt.Printf("Starting Porcupine Linearizability Test (Runs: %d)\n", runs)
+	for i := 0; i < runs; i++ {
+		seed := time.Now().UnixNano()
+		fmt.Printf("Run %d (Seed: %d)... ", i+1, seed)
+		if runTest(seed) {
+			fmt.Println("PASS")
+			pass++
+		} else {
+			fmt.Println("FAIL")
+			fail++
+			fmt.Printf("\nFAILED on Seed: %d\n", seed)
+			break // Stop on first failure as requested
+		}
 	}
+	fmt.Printf("\nTotal: %d, Pass: %d, Fail: %d\n", pass+fail, pass, fail)
 }

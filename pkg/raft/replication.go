@@ -134,6 +134,9 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 		} else {
 			rf.commitIndex = lastNewIndex
 		}
+		if rf.FastApply {
+			rf.applyCond.Broadcast()
+		}
 	}
 
 	reply.Success = true
@@ -161,6 +164,9 @@ func (rf *Raft) advanceCommitIndex() {
 
 		if matchCount > len(rf.peers)/2 {
 			rf.commitIndex = n
+			if rf.FastApply {
+				rf.applyCond.Broadcast()
+			}
 			// The applier goroutine will notice commitIndex > lastApplied and apply entries.
 			break
 		}
