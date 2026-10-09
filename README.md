@@ -46,3 +46,41 @@ go vet ./...
 go build ./...
 go test -run=^$ ./...
 ```
+
+## Running the Real-World TCP Cluster
+
+The system can be deployed as standalone OS-level daemons that communicate over real TCP sockets and persist their Raft state to physical `.dat` files on the hard drive.
+
+### Booting the Nodes
+Open three separate terminal windows and start the nodes. Ensure you pass the full list of peer addresses to every node:
+
+**Terminal 1:**
+```bash
+go run ./cmd/kvserver -id 0 -port 8001 -peers localhost:8001,localhost:8002,localhost:8003
+```
+**Terminal 2:**
+```bash
+go run ./cmd/kvserver -id 1 -port 8002 -peers localhost:8001,localhost:8002,localhost:8003
+```
+**Terminal 3:**
+```bash
+go run ./cmd/kvserver -id 2 -port 8003 -peers localhost:8001,localhost:8002,localhost:8003
+```
+
+### The CLI Client
+Open a 4th terminal to act as the client. The idempotent `Clerk` will automatically route your requests to the current Leader, seamlessly handling network failures and node crashes.
+
+**Write a value:**
+```bash
+go run ./cmd/kvclient put "hello" "world"
+```
+
+**Read a value:**
+```bash
+go run ./cmd/kvclient get "hello"
+```
+
+**Run the Chaos/Load Test:**
+```bash
+go run ./cmd/kvclient benchmark
+```

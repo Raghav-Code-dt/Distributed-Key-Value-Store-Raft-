@@ -22,3 +22,6 @@ kvserver
 # OS-specific files
 .DS_Store
 Thumbs.db
+
+# Raft persistence files
+*.dat
