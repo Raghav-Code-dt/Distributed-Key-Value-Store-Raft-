@@ -18,6 +18,8 @@ func main() {
 	port := flag.String("port", "8001", "The TCP port this server should listen on")
 	peersArg := flag.String("peers", "", "Comma-separated list of peer addresses (e.g., localhost:8002,localhost:8003)")
 	me := flag.Int("id", 0, "The ID of this server (0, 1, or 2)")
+	inMemory := flag.Bool("inmemory", false, "Use in-memory persistence instead of disk")
+	fastApply := flag.Bool("fastapply", false, "Use eager applyCond wakeup to skip 10ms polling")
 	flag.Parse()
 
 	peerAddrs := strings.Split(*peersArg, ",")
@@ -25,9 +27,12 @@ func main() {
 		peerAddrs = []string{}
 	}
 
-	// 1. Create Disk Persister
-	// Each node gets its own physical file based on its ID
-	persister := raft.MakeDiskPersister(fmt.Sprintf("raft-state-%d.dat", *me))
+	var persister raft.Storage
+	if *inMemory {
+		persister = raft.MakePersister()
+	} else {
+		persister = raft.MakeDiskPersister(fmt.Sprintf("raft-state-%d.dat", *me))
+	}
 
 	// 2. Set up TCP Clients for Peers
 	peers := make([]interface{}, len(peerAddrs))
@@ -37,6 +42,9 @@ func main() {
 
 	// 3. Boot the KVServer (and underlying Raft node)
 	kvServer := kvstore.StartKVServer(peers, *me, persister, -1)
+	if *fastApply {
+		kvServer.GetRaft().FastApply = true
+	}
 
 	// 4. Start the TCP RPC Listener
 	server := rpc.NewServer()
