@@ -2,6 +2,7 @@ package kvstore
 
 import (
 	"distributed-kv/pkg/raft"
+	"encoding/gob"
 	"sync"
 	"time"
 )
@@ -36,7 +37,7 @@ func (kv *KVServer) removeNotifyChan(index int) {
 }
 
 // Get handles the Get RPC from clients.
-func (kv *KVServer) Get(args *GetArgs, reply *GetReply) {
+func (kv *KVServer) Get(args *GetArgs, reply *GetReply) error {
 	op := Op{
 		Type:     OpGet,
 		Key:      args.Key,
@@ -47,7 +48,7 @@ func (kv *KVServer) Get(args *GetArgs, reply *GetReply) {
 	index, _, isLeader := kv.rf.Start(op)
 	if !isLeader {
 		reply.Err = ErrWrongLeader
-		return
+		return nil
 	}
 
 	ch := kv.getNotifyChan(index)
@@ -60,10 +61,11 @@ func (kv *KVServer) Get(args *GetArgs, reply *GetReply) {
 	case <-time.After(500 * time.Millisecond):
 		reply.Err = ErrWrongLeader
 	}
+	return nil
 }
 
 // PutAppend handles the Put or Append RPC from clients.
-func (kv *KVServer) PutAppend(args *PutAppendArgs, reply *PutAppendReply) {
+func (kv *KVServer) PutAppend(args *PutAppendArgs, reply *PutAppendReply) error {
 	op := Op{
 		Type:     args.Op,
 		Key:      args.Key,
@@ -75,7 +77,7 @@ func (kv *KVServer) PutAppend(args *PutAppendArgs, reply *PutAppendReply) {
 	index, _, isLeader := kv.rf.Start(op)
 	if !isLeader {
 		reply.Err = ErrWrongLeader
-		return
+		return nil
 	}
 
 	ch := kv.getNotifyChan(index)
@@ -87,6 +89,7 @@ func (kv *KVServer) PutAppend(args *PutAppendArgs, reply *PutAppendReply) {
 	case <-time.After(500 * time.Millisecond):
 		reply.Err = ErrWrongLeader
 	}
+	return nil
 }
 
 // applier runs in the background and processes committed entries from Raft.
@@ -135,8 +138,16 @@ func (kv *KVServer) Kill() {
 	// TODO: stop server and associated Raft node
 }
 
+// GetRaft returns the underlying Raft consensus module.
+func (kv *KVServer) GetRaft() *raft.Raft {
+	return kv.rf
+}
+
 // StartKVServer initializes a new KVServer.
 func StartKVServer(servers []interface{}, me int, persister interface{}, maxraftstate int) *KVServer {
+	// Register the concrete type of the command interface with gob
+	gob.Register(Op{})
+	
 	kv := &KVServer{
 		me:          me,
 		store:       NewKVStore(),

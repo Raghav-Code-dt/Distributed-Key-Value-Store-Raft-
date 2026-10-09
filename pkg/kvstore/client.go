@@ -2,7 +2,6 @@ package kvstore
 
 import (
 	"crypto/rand"
-	"distributed-kv/pkg/labnet"
 	"math/big"
 )
 
@@ -42,7 +41,11 @@ func (ck *Clerk) Get(key string) string {
 
 	for {
 		reply := GetReply{}
-		server := ck.servers[ck.leaderID].(*labnet.ClientEnd)
+		server, interfaceOk := ck.servers[ck.leaderID].(interface{ Call(string, interface{}, interface{}) bool })
+		if !interfaceOk {
+			ck.leaderID = (ck.leaderID + 1) % len(ck.servers)
+			continue
+		}
 		ok := server.Call("KVServer.Get", &args, &reply)
 
 		if ok && reply.Err == OK {
@@ -70,7 +73,11 @@ func (ck *Clerk) PutAppend(key string, value string, op string) {
 
 	for {
 		reply := PutAppendReply{}
-		server := ck.servers[ck.leaderID].(*labnet.ClientEnd)
+		server, interfaceOk := ck.servers[ck.leaderID].(interface{ Call(string, interface{}, interface{}) bool })
+		if !interfaceOk {
+			ck.leaderID = (ck.leaderID + 1) % len(ck.servers)
+			continue
+		}
 		ok := server.Call("KVServer.PutAppend", &args, &reply)
 
 		if ok && reply.Err == OK {

@@ -36,3 +36,15 @@ We will build a simple command-line interface for users to manually send request
 *   The CLI will accept commands like `put key value` and `get key`.
 *   It will instantiate the idempotent `Clerk` and pass it `TCPClientEnd` structs.
 *   The `Clerk` will sweep across the real TCP ports, retrying until it hits the current Leader.
+
+## 5. Resolved Bugs & Architecture Gotchas
+
+### The `encoding/gob` Interface Panic
+When transitioning from in-memory mock storage to physical `DiskPersister`, the server would panic and crash with an `unexpected EOF` error on the TCP socket. 
+*   **Root Cause:** The `KVServer` passes generic operations (`kvstore.Op`) into the Raft log as an empty `interface{}`. When Go's `encoding/gob` attempts to serialize this to the hard drive, it crashes because it does not inherently know how to encode unregistered concrete types hidden inside generic interfaces.
+*   **Resolution:** Explicitly called `gob.Register(Op{})` during server boot to preemptively map the memory layout for the disk encoder.
+
+### Quorum Sizing & Array Index Bounds
+If a node was booted with a `-peers` array that only included *other* nodes (length 2), it would panic with `index out of range` during leader election.
+*   **Root Cause:** The Raft algorithm fundamentally relies on `len(peers)` to calculate the total cluster size and Quorum (`len(peers)/2`). Furthermore, it uses the server's own ID (`rf.me`) as a direct index into arrays like `nextIndex` and `matchIndex`.
+*   **Resolution:** The `-peers` flag must always contain the **entire cluster's addresses**, including the server's own address, in the exact same order on every node. The internal Raft loops automatically `continue` and skip over their own `rf.me` index when broadcasting over TCP.

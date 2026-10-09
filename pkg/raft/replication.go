@@ -78,14 +78,14 @@ func (rf *Raft) sendAppendEntries(server int, args *AppendEntriesArgs, reply *Ap
 }
 
 // AppendEntries is the RPC handler invoked by the leader to replicate log entries and send heartbeats.
-func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply) {
+func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply) error {
 	rf.mu.Lock()
 	defer rf.mu.Unlock()
 
 	if args.Term < rf.currentTerm {
 		reply.Term = rf.currentTerm
 		reply.Success = false
-		return
+		return nil
 	}
 
 	// If we receive a heartbeat from a valid leader, step down and reset timer
@@ -97,11 +97,11 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 	// Consistency Check: Log must contain an entry at PrevLogIndex matching PrevLogTerm
 	if args.PrevLogIndex > rf.log.LastLogIndex() {
 		reply.Success = false
-		return
+		return nil
 	}
 	if rf.log.Entries[args.PrevLogIndex].Term != args.PrevLogTerm {
 		reply.Success = false
-		return
+		return nil
 	}
 
 	// Conflict Resolution & Truncation
@@ -137,6 +137,7 @@ func (rf *Raft) AppendEntries(args *AppendEntriesArgs, reply *AppendEntriesReply
 	}
 
 	reply.Success = true
+	return nil
 }
 
 // advanceCommitIndex checks if entries can be committed based on matchIndex from a majority of peers.
