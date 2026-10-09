@@ -28,6 +28,7 @@ Thumbs.db
 
 # Local benchmark and profiling artifacts
 kvserver-bench
+kvserver-failover
 strace
 libfsync.so
 fsync_counter.c
